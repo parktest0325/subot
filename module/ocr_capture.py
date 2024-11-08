@@ -23,14 +23,14 @@ def open_capture_window():
     # 기본 설정
     window = tk.Toplevel()
     window.title("Screen Capture")
-    window.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")  # 기본 크기 설정
+    window.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
     window.attributes("-topmost", True)  # 항상 위에 표시
     window.resizable(True, True)  # 창 크기 조절 가능하도록 설정
     window.attributes("-transparentcolor", "white")  # 흰색을 투명하게 설정
 
     # OCR 영역을 나타내는 Frame 생성
-    capture_frame = tk.Frame(window, bg="white", highlightbackground="red", highlightthickness=BORDER_SIZE)
-    capture_frame.place(width=400, height=300)  # 초기 위치 및 크기 설정
+    capture_frame = tk.Frame(window, bg="white", highlightbackground="green", highlightthickness=BORDER_SIZE)
+    capture_frame.place(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)  # 초기 위치 및 크기 설정
 
     # 타이틀바와 테두리 두께 계산
     def calculate_window_dimensions():
@@ -55,24 +55,29 @@ def open_capture_window():
         global screenshot_count, window_default_height, window_default_width
         # 창이 열려 있는 동안 OCR 수행
         while window.winfo_exists():
-            x = window.winfo_x() + window_default_width + BORDER_SIZE       # -1  테스트를 위해 1px 테두리 보이도록
-            y = window.winfo_y() + window_default_height + BORDER_SIZE      # -1
-            width = max(capture_frame.winfo_width() - BORDER_SIZE * 2, 1)   # +2
-            height = max(capture_frame.winfo_height() - BORDER_SIZE * 2, 1) # +2
-            region = (x, y, width, height)
+            try:
+                x = window.winfo_x() + window_default_width + BORDER_SIZE       # -1  테스트를 위해 1px 테두리 보이도록
+                y = window.winfo_y() + window_default_height + BORDER_SIZE      # -1
+                width = capture_frame.winfo_width() - BORDER_SIZE * 2   # +2
+                height = capture_frame.winfo_height() - BORDER_SIZE * 2 # +2
+                region = (x, y, width, height)
 
-            screenshot = pyautogui.screenshot(region=region)
-            text = pytesseract.image_to_string(screenshot)
+                screenshot = pyautogui.screenshot(region=region)
+                text = pytesseract.image_to_string(screenshot)
 
-            # [TEST] 스크린샷 저장
-            # file_path = os.path.join(save_dir, f"screenshot{screenshot_count}.png")
-            # screenshot.save(file_path)
-            # screenshot_count += 1
+                # [TEST] 스크린샷 저장
+                # file_path = os.path.join(save_dir, f"screenshot{screenshot_count}.png")
+                # screenshot.save(file_path)
+                # screenshot_count += 1
 
-            # OCR 결과를 update_text_display에 표시
-            print(text)
-            update_text_display(text)
-            time.sleep(1)
+                # OCR 결과를 update_text_display에 표시
+                print(text)
+                update_text_display(text)
+                time.sleep(1)
+            except tk.TclError:
+                # 창이 닫히면 발생하는 예외를 무시하고 루프 종료
+                print("Window closed. Stopping OCR.")
+                break
 
     # 창이 닫힐 때 스레드 종료
     def on_close():

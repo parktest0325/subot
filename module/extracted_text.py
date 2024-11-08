@@ -8,8 +8,8 @@ WINDOW_HEIGHT = 300
 def open_text_display():
     global text_label
     window = tk.Toplevel()
-    window.title("Text Display")
-    window.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")  # 기본 창 크기 설정
+    window.title("DEBUG TEXT")
+    window.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
 
     text_label = tk.Label(window, text="", wraplength=300)
     text_label.pack()
