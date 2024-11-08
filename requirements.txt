@@ -1,9 +1,11 @@
 googletrans==4.0.0-rc1
-pytesseract==0.3.13
+# pytesseract==0.3.13
 pyautogui==0.9.54
 opencv-python==4.10.0.84
 requests==2.32.3
-google-trans-new==1.1.9
 transformers==4.46.2
 torch==2.5.1
 sentencepiece==0.2.0
+
+paddlepaddle==2.6.2
+paddleocr==2.9.1

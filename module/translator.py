@@ -9,7 +9,7 @@ device = 0 if torch.cuda.is_available() else -1  # GPU 사용 가능 시 device=
 # NLLB-200 모델을 위한 pipeline 초기화
 translator = pipeline("translation", model="facebook/nllb-200-distilled-600M", device=device)
 
-WINDOW_WIDTH = 400
+WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 300
 
 translated_text_label = None
@@ -23,7 +23,7 @@ def open_subtitle_window():
     window.title("Translated Text")
     window.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
 
-    translated_text_label = tk.Label(window, text="", wraplength=300, font=("Helvetica", 14), justify="left")
+    translated_text_label = tk.Label(window, text="", wraplength=WINDOW_WIDTH, font=("Helvetica", 18), justify="left")
     translated_text_label.pack(padx=20, pady=20)
 
     def on_close():
@@ -58,6 +58,6 @@ def translate(text, target_lang='kor_Hang'):
         return ""
     
     # pipeline에서 번역 수행
-    translated_result = translator(text, src_lang="eng_Latn", tgt_lang=target_lang)
+    translated_result = translator(text, src_lang="zho_Hans", tgt_lang=target_lang)
     translated_text = translated_result[0]['translation_text']
     return translated_text
