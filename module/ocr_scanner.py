@@ -72,10 +72,10 @@ def open_ocr_window():
                 # screenshot_count += 1
 
                 # OCR 결과를 update_text_display에 표시하고 Translator로 전달 
-                print(text)
+                # print(text)
                 update_debugger_text(text)
                 update_translator_text(text)
-                time.sleep(3)
+                time.sleep(1)
             except tk.TclError:
                 # 창이 닫히면 발생하는 예외를 무시하고 루프 종료
                 print("Window closed. Stopping OCR.")
