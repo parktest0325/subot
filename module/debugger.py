@@ -5,7 +5,7 @@ text_label = None
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 300
 
-def open_text_display():
+def open_debugtext_window():
     global text_label
     window = tk.Toplevel()
     window.title("DEBUG TEXT")
@@ -22,6 +22,6 @@ def open_text_display():
 
     window.protocol("WM_DELETE_WINDOW", on_close)
 
-def update_text_display(text):
+def update_debugger_text(text):
     if text_label:
         text_label.config(text=text)

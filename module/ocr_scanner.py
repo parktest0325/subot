@@ -1,7 +1,8 @@
 import tkinter as tk
 import pytesseract
 import pyautogui
-from module.extracted_text import update_text_display
+from module.debugger import update_debugger_text
+from module.translator import update_translator_text
 import threading
 import time
 import os
@@ -18,7 +19,7 @@ window_default_width = 0  # 초기화
 # os.makedirs(save_dir, exist_ok=True)  # 저장할 디렉토리 생성
 # screenshot_count = 1
 
-def open_capture_window():
+def open_ocr_window():
     global screenshot_count, titlebar_height
     # 기본 설정
     window = tk.Toplevel()
@@ -58,8 +59,8 @@ def open_capture_window():
             try:
                 x = window.winfo_x() + window_default_width + BORDER_SIZE       # -1  테스트를 위해 1px 테두리 보이도록
                 y = window.winfo_y() + window_default_height + BORDER_SIZE      # -1
-                width = capture_frame.winfo_width() - BORDER_SIZE * 2   # +2
-                height = capture_frame.winfo_height() - BORDER_SIZE * 2 # +2
+                width = max(0, capture_frame.winfo_width() - BORDER_SIZE * 2)   # +2
+                height = max(0, capture_frame.winfo_height() - BORDER_SIZE * 2) # +2
                 region = (x, y, width, height)
 
                 screenshot = pyautogui.screenshot(region=region)
@@ -70,10 +71,11 @@ def open_capture_window():
                 # screenshot.save(file_path)
                 # screenshot_count += 1
 
-                # OCR 결과를 update_text_display에 표시
+                # OCR 결과를 update_text_display에 표시하고 Translator로 전달 
                 print(text)
-                update_text_display(text)
-                time.sleep(1)
+                update_debugger_text(text)
+                update_translator_text(text)
+                time.sleep(3)
             except tk.TclError:
                 # 창이 닫히면 발생하는 예외를 무시하고 루프 종료
                 print("Window closed. Stopping OCR.")
