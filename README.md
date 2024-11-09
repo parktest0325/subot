@@ -4,3 +4,9 @@
 
 1. OCR
 2. STT
+
+
+# environ
+* gpu 2060 6G
+* python 3.12.7
+* cuda 12.6
