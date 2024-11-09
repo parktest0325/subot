@@ -7,9 +7,9 @@
 * OCR 로 영상에 있는 자막 실시간 인식 후 번역
 * STT 로 자막이 없는 강의에 자막을 달아주는 기능 (중요)
 
-#### OCR
 ![image](https://github.com/user-attachments/assets/8f0279bf-6ceb-480e-81ae-247d81c1a9c9)
 
+#### OCR
 제가 원하는건 중-한 번역이기 때문에 중국어의 인식률이 높은 OCR이 필요했고 baidu의 `paddleocr`을 사용하기로 결정했습니다. (이런걸 만들어주다니 압도적 감사)
 
 #### 번역기
