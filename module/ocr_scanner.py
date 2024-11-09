@@ -63,6 +63,20 @@ def open_ocr_window():
         image_bytes = image.tobytes()  # 이미지 데이터를 바이트로 변환
         return hashlib.md5(image_bytes).hexdigest()  # MD5 해시 계산
 
+    # OCR 후처리 함수 인식한 텍스트 size로 필터링
+    def ocr_filter(results, min_width=40, min_height=45, min_confidence=0.6):
+        """글자 크기와 신뢰도에 따른 필터링된 OCR 결과만 반환합니다."""
+        filtered_results = []
+        for line in results[0]:  # 각 라인에서 텍스트 정보 추출
+            box, (text, confidence) = line[0], line[1]
+            box_width = box[2][0] - box[0][0]
+            box_height = box[2][1] - box[0][1]
+            
+            # 크기와 신뢰도 기준을 모두 만족하는 텍스트만 추가
+            if box_width >= min_width and box_height >= min_height and confidence >= min_confidence:
+                filtered_results.append(text)
+        return filtered_results
+
     def continuous_ocr():
         global window_default_height, window_default_width #, screenshot_count
 
@@ -82,9 +96,10 @@ def open_ocr_window():
                 if current_hash != previous_hash:
                     previous_hash = current_hash
                     screenshot_np = np.array(screenshot)
-                    result = ocr.ocr(screenshot_np) #, cls=True)  # cls=True로 설정하면 각 문자의 신뢰도를 함께 반환
+                    result = ocr.ocr(screenshot_np) #, cls=True)  # cls=True로 설정하면 각 문자 회전각도 감지 및 보정. 자막이라 필요없다.
                     if result and result[0]:
-                        text = "\n".join([line[1][0] for line in result[0]])
+                        filtered_texts = ocr_filter(result)
+                        text = "\n".join(filtered_texts)
                         # text = pytesseract.image_to_string(screenshot)
 
                         # [TEST] 스크린샷 저장

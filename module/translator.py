@@ -20,6 +20,7 @@ def open_subtitle_window():
     """번역된 텍스트를 표시하는 창을 엽니다."""
     global translated_text_widget
     window = tk.Toplevel()
+    window.attributes("-topmost", True)  # 항상 위에 표시
     window.title("Translated Text")
     window.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
 
