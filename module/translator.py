@@ -18,26 +18,33 @@ last_text = ""  # 이전 텍스트를 저장할 전역 변수
 def open_subtitle_window():
     print(torch.cuda.is_available())
     """번역된 텍스트를 표시하는 창을 엽니다."""
-    global translated_text_label
+    global translated_text_widget
     window = tk.Toplevel()
     window.title("Translated Text")
     window.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
 
-    translated_text_label = tk.Label(window, text="", wraplength=WINDOW_WIDTH, font=("Helvetica", 18), justify="left")
-    translated_text_label.pack(padx=20, pady=20)
+    # 스크롤 가능한 텍스트 위젯 생성
+    translated_text_widget = tk.Text(window, wrap="word", font=("Helvetica", 18), padx=20, pady=20)
+    translated_text_widget.pack(fill="both", expand=True)
+
+    # 텍스트 위젯의 스크롤바 설정
+    scrollbar = tk.Scrollbar(translated_text_widget)
+    translated_text_widget.config(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side="right", fill="y")
+    scrollbar.config(command=translated_text_widget.yview)
 
     def on_close():
-        """창이 닫힐 때 번역 텍스트 레이블을 초기화합니다."""
-        global translated_text_label
-        translated_text_label = None
+        """창이 닫힐 때 번역 텍스트 위젯을 초기화합니다."""
+        global translated_text_widget
+        translated_text_widget = None
         window.destroy()
 
     window.protocol("WM_DELETE_WINDOW", on_close)
 
 def update_translator_text(text):
     """텍스트가 변경되었을 때 번역하여 창에 표시합니다."""
-    global translated_text_label, last_text
-    if translated_text_label and text != last_text:
+    global last_text
+    if text != last_text:
         last_text = text  # 현재 텍스트를 last_text에 저장
         # 번역을 별도의 스레드에서 수행
         threading.Thread(target=perform_translation, args=(text,)).start()
@@ -49,9 +56,15 @@ def perform_translation(text):
     except Exception as e:
         translated_text = f"번역 중 오류 발생: {e}"
     
-    if translated_text_label:
-        translated_text_label.after(0, lambda: translated_text_label.config(text=translated_text))
+    if translated_text_widget:
+        # 이전 번역된 텍스트를 위쪽에 유지하고, 새로운 텍스트를 추가
+        translated_text_widget.after(0, lambda: append_translated_text(translated_text))
 
+def append_translated_text(translated_text):
+    """새 번역을 추가하고, 텍스트 위젯의 맨 아래로 자동 스크롤합니다."""
+    translated_text_widget.insert("end", translated_text + "\n\n")  # 새 번역 추가
+    translated_text_widget.see("end")  # 새 번역이 보이도록 자동 스크롤
+    
 def translate(text, target_lang='kor_Hang'):
     """주어진 텍스트를 번역하여 반환합니다."""
     if not text.strip():

@@ -1,16 +1,16 @@
 import tkinter as tk
 # import pytesseract
+# from PIL import ImageTk, Image, ImageDraw
+# import os
 import hashlib
 import pyautogui
 from module.debugger import update_debugger_text
 from module.translator import update_translator_text
 import threading
 import time
-import os
 import numpy as np
 
 from paddleocr import PaddleOCR
-from PIL import ImageTk, Image, ImageDraw
 
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 300
@@ -21,7 +21,6 @@ ocr = PaddleOCR(use_angle_cls=True, lang='ch', use_gpu=False)
 
 window_default_height = 0  # 초기화
 window_default_width = 0  # 초기화
-previous_hash = None
 
 # 스크린샷 저장 디렉토리 및 카운트 설정
 # save_dir = "screenshots"
@@ -65,8 +64,10 @@ def open_ocr_window():
         return hashlib.md5(image_bytes).hexdigest()  # MD5 해시 계산
 
     def continuous_ocr():
-        global window_default_height, window_default_width, previous_hash #, screenshot_count
+        global window_default_height, window_default_width #, screenshot_count
+
         # 창이 열려 있는 동안 OCR 수행
+        previous_hash = None
         while window.winfo_exists():
             try:
                 x = window.winfo_x() + window_default_width + BORDER_SIZE       # -1  테스트를 위해 1px 테두리 보이도록
