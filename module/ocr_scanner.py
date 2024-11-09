@@ -9,8 +9,8 @@ import time
 import os
 import numpy as np
 
-from paddleocr import PaddleOCR, draw_ocr 
-from PIL import Image
+from paddleocr import PaddleOCR
+from PIL import ImageTk, Image, ImageDraw
 
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 300
@@ -29,7 +29,7 @@ previous_hash = None
 # screenshot_count = 1
 
 def open_ocr_window():
-    global screenshot_count, titlebar_height
+    global window_default_width, window_default_height #, screenshot_count
     # 기본 설정
     window = tk.Toplevel()
     window.title("Screen Capture")
@@ -42,15 +42,13 @@ def open_ocr_window():
     capture_frame = tk.Frame(window, bg="white", highlightbackground="green", highlightthickness=BORDER_SIZE)
     capture_frame.place(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)  # 초기 위치 및 크기 설정
 
-    # 타이틀바와 테두리 두께 계산
-    def calculate_window_dimensions():
-        global window_default_height, window_default_width
-        window_default_height = window.winfo_rooty() - window.winfo_y()
-        window_default_width = window.winfo_rootx() - window.winfo_x()
-        print("Titlebar Height:", window_default_height, "Border Width:", window_default_width)
-
-    # 창이 렌더링된 후 타이틀바 높이를 계산
-    window.after(10, calculate_window_dimensions)
+    # 창이 렌더링되기까지 대기
+    # 렌더링 되기 전에 창 크기를 가져오면 0px로 나옴
+    window.wait_visibility()
+    # print("winfo_rooty:", window.winfo_rooty(), "y:", window.winfo_y())
+    window_default_height = window.winfo_rooty() - window.winfo_y()
+    window_default_width = window.winfo_rootx() - window.winfo_x()
+    # print("Titlebar Height:", window_default_height, "Border Width:", window_default_width)
 
     def update_capture_frame(event):
         # 창 크기 변경 시 capture_frame 크기 업데이트
@@ -67,7 +65,7 @@ def open_ocr_window():
         return hashlib.md5(image_bytes).hexdigest()  # MD5 해시 계산
 
     def continuous_ocr():
-        global screenshot_count, window_default_height, window_default_width, previous_hash
+        global window_default_height, window_default_width, previous_hash #, screenshot_count
         # 창이 열려 있는 동안 OCR 수행
         while window.winfo_exists():
             try:
@@ -83,23 +81,27 @@ def open_ocr_window():
                 if current_hash != previous_hash:
                     previous_hash = current_hash
                     screenshot_np = np.array(screenshot)
-                    result = ocr.ocr(screenshot_np, cls=True)
-                    text = "\n".join([line[1][0] for line in result[0]])
-                    # text = pytesseract.image_to_string(screenshot)
+                    result = ocr.ocr(screenshot_np) #, cls=True)  # cls=True로 설정하면 각 문자의 신뢰도를 함께 반환
+                    if result and result[0]:
+                        text = "\n".join([line[1][0] for line in result[0]])
+                        # text = pytesseract.image_to_string(screenshot)
 
-                    # [TEST] 스크린샷 저장
-                    # file_path = os.path.join(save_dir, f"screenshot{screenshot_count}.png")
-                    # screenshot.save(file_path)
-                    # screenshot_count += 1
+                        # [TEST] 스크린샷 저장
+                        # file_path = os.path.join(save_dir, f"screenshot{screenshot_count}.png")
+                        # screenshot.save(file_path)
+                        # screenshot_count += 1
 
-                    # OCR 결과를 update_text_display에 표시하고 Translator로 전달 
-                    # print(text)
-                    update_debugger_text(text)
-                    update_translator_text(text)
+                        # OCR 결과를 update_text_display에 표시하고 Translator로 전달 
+                        # print(text)
+
+                        # 검출된 영역 주변에 사각형 그릴 수 있으면 좋겠지만 Frame에서는 안되는 것 같다
+
+                        # 결과 업데이트 
+                        update_debugger_text(text)
+                        update_translator_text(text)
                 time.sleep(1)
-            except tk.TclError:
-                # 창이 닫히면 발생하는 예외를 무시하고 루프 종료
-                print("Window closed. Stopping OCR.")
+            except tk.TclError as e:
+                print("...", e)
                 break
 
     # 창이 닫힐 때 스레드 종료
