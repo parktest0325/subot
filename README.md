@@ -25,17 +25,14 @@
     nvcc -V       # cuda 설치 확인
     nvidia-smi    # 지원되는 cuda 버전 확인
     ```
-
 2. cuda 설치   
     https://developer.nvidia.com/cuda-downloads
-
-3. pytorch gpu 버전 명령어 확인 및 설치 
+3. pytorch gpu 버전 명령어 확인 및 설치
+    https://pytorch.org/get-started/locally/
     ```bash
     pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
     ```
-
 4. python 3.12.7 설치
-
 5. pip 나머지 패키지 설치
     ```bash
     git clone <this project>
