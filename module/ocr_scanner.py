@@ -6,6 +6,7 @@ import threading
 import time
 import numpy as np
 import module.custom_window as custom_window
+# from module.sentence_completion import create_sentence_checker
 
 from paddleocr import PaddleOCR
 
@@ -20,7 +21,7 @@ def open_ocr_window():
     window, canvas = custom_window.open_custom_window(title_text="OCR Scanner", window_width=WINDOW_WIDTH, window_height=WINDOW_HEIGHT, border_color=BORDER_COLOR, border_width=BORDER_WIDTH)
 
     # OCR 후처리 함수 인식한 텍스트 size로 필터링
-    def ocr_filter(results, min_width=40, min_height=45, min_confidence=0.6):
+    def ocr_filter(results, min_width=20, min_height=20, min_confidence=0.6):
         """글자 크기와 신뢰도에 따른 필터링된 OCR 결과만 반환합니다."""
         filtered_results = []
         for line in results[0]:  # 각 라인에서 텍스트 정보 추출
@@ -34,7 +35,7 @@ def open_ocr_window():
         return filtered_results
 
     def continuous_ocr():
-        previous_screen = None
+        # update_sentence_checker = create_sentence_checker(timeout=2.0)
         while window.winfo_exists():
             try:
                 x = canvas.winfo_rootx()
@@ -44,32 +45,32 @@ def open_ocr_window():
                 region = (x, y, width, height)
 
                 screenshot = pyautogui.screenshot(region=region)
-                if screenshot != previous_screen:
-                    previous_screen = screenshot
-                    screenshot_np = np.array(screenshot)
-                    result = ocr.ocr(screenshot_np) #, cls=True)  # cls=True로 설정하면 각 문자 회전각도 감지 및 보정. 자막이라 필요없다.
-                    if result and result[0]:
-                        filtered_texts = ocr_filter(result)
-                        text = "\n".join(filtered_texts)
-                        # text = pytesseract.image_to_string(screenshot)
+                screenshot_np = np.array(screenshot)
+                result = ocr.ocr(screenshot_np) #, cls=True)  # cls=True로 설정하면 각 문자 회전각도 감지 및 보정. 자막이라 필요없다.
+                if result and result[0]:
+                    filtered_texts = ocr_filter(result)
+                    text = "\n".join(filtered_texts)
+                    # text = pytesseract.image_to_string(screenshot)
 
-                        # [TEST] 스크린샷 저장
-                        # file_path = os.path.join(save_dir, f"screenshot{screenshot_count}.png")
-                        # screenshot.save(file_path)
-                        # screenshot_count += 1
+                    # [TEST] 스크린샷 저장
+                    # file_path = os.path.join(save_dir, f"screenshot{screenshot_count}.png")
+                    # screenshot.save(file_path)
+                    # screenshot_count += 1
 
-                        # OCR 결과를 update_text_display에 표시하고 Translator로 전달 
-                        # print(text)
+                    # OCR 결과를 update_text_display에 표시하고 Translator로 전달 
+                    # print(text)
 
-                        # 검출된 영역 주변에 사각형 그릴 수 있으면 좋겠지만 Frame에서는 안되는 것 같다
+                    # 검출된 영역 주변에 사각형 그릴 수 있으면 좋겠지만 Frame에서는 안되는 것 같다
 
-                        # 결과 업데이트 
-                        update_debugger_text(text)
-                        update_translator_text(text)
-                time.sleep(1)
+                    # 결과 업데이트 
+                    update_debugger_text(text)
+                    # update_sentence_checker(text)
+                    update_translator_text(text)
+                time.sleep(0.5)
             except tk.TclError as e:
                 print("...", e)
                 break
+
 
     # OCR 작업을 별도 스레드로 실행
     ocr_thread = threading.Thread(target=continuous_ocr, daemon=True)
