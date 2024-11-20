@@ -3,10 +3,12 @@ from module.ocr_scanner import open_ocr_window
 from module.translator import open_subtitle_window
 from module.debugger import open_debugtext_window
 from module.custom_window import open_custom_window
+from module.whisper_streamer import whisper_start, whisper_stop
 
 WINDOW_WIDTH = 300
 WINDOW_HEIGHT = 300
 
+server_thread, client_thread = None, None
 def main_control_board():
     root = tk.Tk()
     root.title("Main Control Board")
@@ -14,17 +16,19 @@ def main_control_board():
 
     # 버튼 상태를 관리할 변수 (재생: True, 정지: False)
     is_playing = tk.BooleanVar(value=False)
-
     def toggle_mode():
+        global server_thread, client_thread
         """재생/정지 토글 버튼의 동작"""
         if is_playing.get():
             is_playing.set(False)
             toggle_button.config(text="Whisper Play", bg="green")
             print("Stopped")  # 실제 정지 동작 추가 가능
+            whisper_stop(server_thread, client_thread)
         else:
             is_playing.set(True)
             toggle_button.config(text="Whisper Stop", bg="red")
             print("Playing")  # 실제 재생 동작 추가 가능
+            server_thread, client_thread = whisper_start()
 
     tk.Button(root, fg="white", bg="black", text="OCR Scanner", command=open_ocr_window).pack()
     tk.Button(root, fg="white", bg="black", text="Translator", command=open_subtitle_window).pack()

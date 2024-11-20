@@ -1,20 +1,27 @@
 import threading
-import queue
 import subprocess
 import time
 import numpy as np
 import io
 import os
-import soundfile as sf
+import sys
+import soundfile
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from debugger import update_debugger_text
+from translator import update_translator_text
 
 from whisper.whisper_online import *
 import argparse
 import logging
+import socket
+import whisper.line_packet as line_packet
 
 # Global configuration
 INTERFACE_NAME = "CABLE Output(VB-Audio Virtual Cable)"
 SAMPLING_RATE = 16000
 MIN_CHUNK_SIZE = 1  # in seconds
+TMP_HOST = "localhost"
+TMP_PORT = 43007
 
 logger = logging.getLogger(__name__)
 parser = argparse.ArgumentParser()
@@ -26,9 +33,9 @@ add_shared_args(parser)
 custom_args = ['--model', 'large-v3', '--lan', 'zh']
 args = parser.parse_args(custom_args)
 
-set_logging(args,logger,other="")
+set_logging(args, logger, other="")
 
-# setting whisper object by args 
+# Whisper model initialization
 size = args.model
 language = args.lan
 asr, online = asr_factory(args)
@@ -36,152 +43,184 @@ min_chunk = args.min_chunk_size
 print(size, language, min_chunk)
 
 
+class Connection:
+    '''it wraps conn object'''
+    PACKET_SIZE = 32000*5*60 # 5 minutes # was: 65536
+
+    def __init__(self, conn):
+        self.conn = conn
+        self.last_line = ""
+
+        self.conn.setblocking(True)
+
+    def send(self, line):
+        '''it doesn't send the same line twice, because it was problematic in online-text-flow-events'''
+        if line == self.last_line:
+            return
+        line_packet.send_one_line(self.conn, line)
+        self.last_line = line
+
+    def receive_lines(self):
+        in_line = line_packet.receive_lines(self.conn)
+        return in_line
+
+    def non_blocking_receive_audio(self):
+        try:
+            r = self.conn.recv(self.PACKET_SIZE)
+            return r
+        except ConnectionResetError:
+            return None
+
 class ServerProcessorThread(threading.Thread):
-    def __init__(self, data_queue, online_asr_proc, min_chunk):
+    """Server processor for handling audio chunks and Whisper processing."""
+
+    def __init__(self, online_asr_proc, min_chunk):
         super().__init__()
-        self.data_queue = data_queue
         self.online_asr_proc = online_asr_proc
         self.min_chunk = min_chunk
         self.running = True
         self.last_end = None
         self.is_first = True
-
-    def receive_audio_chunk(self):
-        """Receive audio data from the queue."""
-        out = []
-        min_limit = self.min_chunk * SAMPLING_RATE
-        while sum(len(x) for x in out) < min_limit:
-            try:
-                raw_bytes = self.data_queue.get(timeout=1)
-                if raw_bytes is None:  # Signal to stop processing
-                    return None
-                audio = sf.SoundFile(io.BytesIO(raw_bytes), channels=1, samplerate=SAMPLING_RATE, subtype="PCM_16", format="RAW")
-                audio_data = np.array(audio.read(dtype="float32"))
-                out.append(audio_data)
-            except queue.Empty:
-                continue
-        if not out:
-            return None
-        combined_audio = np.concatenate(out)
-        if self.is_first and len(combined_audio) < min_limit:
-            return None
-        self.is_first = False
-        return combined_audio
-
-    def format_output_transcript(self, result):
-        """Format Whisper output."""
-        if result[0] is not None:
-            beg, end = result[0] * 1000, result[1] * 1000
-            if self.last_end is not None:
-                beg = max(beg, self.last_end)
-            self.last_end = end
-            transcript = f"{beg:.0f} {end:.0f} {result[2]}"
-            print(transcript)
-            return transcript
-        return None
+        self.conn = None
+        self.addr = None
 
     def run(self):
-        """Run the server processor thread."""
-        self.online_asr_proc.init()
-        while self.running:
-            audio_chunk = self.receive_audio_chunk()
-            if audio_chunk is None:
-                break
-            self.online_asr_proc.insert_audio_chunk(audio_chunk)
-            result = self.online_asr_proc.process_iter()
-            formatted_result = self.format_output_transcript(result)
-            if formatted_result:
-                print(f"Server: Processed result: {formatted_result}")
+        """Start the server and process incoming audio data."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            server_socket.bind((TMP_HOST, TMP_PORT))
+            server_socket.listen(1)
+            logger.info(f"Listening on {TMP_HOST}:{TMP_PORT}")
 
-    def stop(self):
-        """Stop the server processor thread."""
-        self.running = False
-        self.data_queue.put(None)  # Send stop signal
+            self.conn, self.addr = server_socket.accept()
+            logger.info(f"Connected to client at {self.addr}")
+
+            self.connection = Connection(self.conn)
+            self.online_asr_proc.init()
+
+            while self.running:
+                a = self.receive_audio_chunk()
+                if a is None:
+                    break
+                self.online_asr_proc.insert_audio_chunk(a)
+                o = online.process_iter()
+                self.send_result(o)
+
+            logger.info(f"Connection with {self.addr} closed")
+
+    def receive_audio_chunk(self):
+        # receive all audio that is available by this time
+        # blocks operation if less than self.min_chunk seconds is available
+        # unblocks if connection is closed or a chunk is available
+        out = []
+        minlimit = self.min_chunk*SAMPLING_RATE
+        while sum(len(x) for x in out) < minlimit:
+            raw_bytes = self.connection.non_blocking_receive_audio()
+            if not raw_bytes:
+                break
+#            print("received audio:",len(raw_bytes), "bytes", raw_bytes[:10])
+            sf = soundfile.SoundFile(io.BytesIO(raw_bytes), channels=1,endian="LITTLE",samplerate=SAMPLING_RATE, subtype="PCM_16",format="RAW")
+            audio, _ = librosa.load(sf,sr=SAMPLING_RATE,dtype=np.float32)
+            out.append(audio)
+        if not out:
+            return None
+        conc = np.concatenate(out)
+        if self.is_first and len(conc) < minlimit:
+            return None
+        self.is_first = False
+        return np.concatenate(out)
+
+    def format_output_transcript(self,o):
+        # output format in stdout is like:
+        # 0 1720 Takhle to je
+        # - the first two words are:
+        #    - beg and end timestamp of the text segment, as estimated by Whisper model. The timestamps are not accurate, but they're useful anyway
+        # - the next words: segment transcript
+
+        # This function differs from whisper_online.output_transcript in the following:
+        # succeeding [beg,end] intervals are not overlapping because ELITR protocol (implemented in online-text-flow events) requires it.
+        # Therefore, beg, is max of previous end and current beg outputed by Whisper.
+        # Usually it differs negligibly, by appx 20 ms.
+
+        if o[0] is not None:
+            beg, end = o[0]*1000,o[1]*1000
+            if self.last_end is not None:
+                beg = max(beg, self.last_end)
+
+            self.last_end = end
+            print("%1.0f %1.0f %s" % (beg,end,o[2]),flush=True,file=sys.stderr)
+            return "%1.0f %1.0f %s" % (beg,end,o[2])
+        else:
+            logger.debug("No text in this segment")
+            return None
+
+    def send_result(self, o):
+        msg = self.format_output_transcript(o)
+        print(",,,,", msg)
+        if msg is not None:
+            print("????")
+            update_debugger_text(msg)
+            # update_sentence_checker(msg)
+            update_translator_text(msg)
+
 
 
 class FFMpegClientThread(threading.Thread):
-    def __init__(self, data_queue, ffmpeg_command):
+    """FFmpeg client to send audio data over TCP."""
+
+    def __init__(self):
         super().__init__()
-        self.data_queue = data_queue
         self.running = True
-        self.ffmpeg_command = ffmpeg_command
+        self.process = None
 
     def run(self):
-        """Run the client thread to read audio data from ffmpeg."""
-        process = subprocess.Popen(
-            self.ffmpeg_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            bufsize=10**6,
+        """Run FFmpeg process to send audio data."""
+        ffmpeg_command = [
+            "ffmpeg",
+            "-f", "dshow",
+            "-i", f"audio={INTERFACE_NAME}",
+            "-ar", str(SAMPLING_RATE),
+            "-ac", "1",
+            "-f", "s16le",
+            f"tcp://{TMP_HOST}:{TMP_PORT}",
+        ]
+        self.process = subprocess.Popen(
+            ffmpeg_command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
 
-        try:
-            while self.running:
-                # 16kHz, 16-bit PCM에서 약 0.5초 분량 사이즈 조절해보면서 테스트하면 좋을듯
-                raw_bytes = process.stdout.read(32000) 
-                if not raw_bytes:
-                    break
-                self.data_queue.put(raw_bytes)
-        except Exception as e:
-            print(f"Error reading from ffmpeg: {e}")
-        finally:
-            process.terminate()
-            process.wait()
-
     def stop(self):
-        """Stop the client thread."""
+        """Stop FFmpeg process."""
         self.running = False
-
-
-# Global variables for threads
-client_thread = None
-server_thread = None
-data_queue = queue.Queue()
+        if self.process:
+            self.process.terminate()
+            self.process.wait()
 
 
 def whisper_start():
-    """Start the Whisper client and server threads."""
-    global client_thread, server_thread
-
-    # ffmpeg command to read audio from CABLE Output
-    ffmpeg_command = [
-        "ffmpeg",
-        "-f", "dshow",
-        "-i", "audio=" + str(INTERFACE_NAME),
-        "-ar", str(SAMPLING_RATE),
-        "-ac", "1",
-        "-f", "s16le",
-        "pipe:1",
-    ]
-
-    server_thread = ServerProcessorThread(data_queue, online, args.min_chunk_size)
-    client_thread = FFMpegClientThread(data_queue, ffmpeg_command)
+    """Start the server and FFmpeg client."""
+    server_thread = ServerProcessorThread(online, args.min_chunk_size)
+    client_thread = FFMpegClientThread()
 
     server_thread.start()
     client_thread.start()
-    print("Whisper processing started.")
+
+    return server_thread, client_thread
 
 
-def whisper_stop():
-    """Stop the Whisper client and server threads."""
-    global client_thread, server_thread
-
-    if client_thread and server_thread:
-        print("Stopping Whisper processing...")
-        client_thread.stop()
-        server_thread.stop()
-
-        client_thread.join()
-        server_thread.join()
-        print("Whisper processing stopped.")
-    else:
-        print("Whisper is not running.")
+def whisper_stop(server_thread, client_thread):
+    """Stop the server and FFmpeg client."""
+    server_thread.running = False
+    client_thread.stop()
+    server_thread.join()
+    client_thread.join()
+    logger.info("Whisper processing stopped.")
 
 
 if __name__ == "__main__":
     try:
-        whisper_start()
+        server_thread, client_thread = whisper_start()
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        whisper_stop()
+        whisper_stop(server_thread, client_thread)

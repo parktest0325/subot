@@ -12,7 +12,7 @@ translator = pipeline("translation", model="facebook/nllb-200-distilled-600M", d
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 300
 
-translated_text_label = None
+translated_text_widget = None
 last_text = ""  # 이전 텍스트를 저장할 전역 변수
 
 def open_subtitle_window():
