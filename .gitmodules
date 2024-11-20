@@ -1,0 +1,3 @@
+[submodule "module/whisper"]
+	path = module/whisper
+	url = https://github.com/parktest0325/whisper_streaming_fork
