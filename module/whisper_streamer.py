@@ -6,9 +6,10 @@ import io
 import os
 import sys
 import soundfile
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from debugger import update_debugger_text
-from translator import update_translator_text
+from module.debugger import update_debugger_text
+from module.translator import update_translator_text
 
 from whisper.whisper_online import *
 import argparse
@@ -19,7 +20,7 @@ import whisper.line_packet as line_packet
 # Global configuration
 INTERFACE_NAME = "CABLE Output(VB-Audio Virtual Cable)"
 SAMPLING_RATE = 16000
-MIN_CHUNK_SIZE = 1  # in seconds
+MIN_CHUNK_SIZE = 2.0  # in seconds
 TMP_HOST = "localhost"
 TMP_PORT = 43007
 
@@ -148,16 +149,15 @@ class ServerProcessorThread(threading.Thread):
 
             self.last_end = end
             print("%1.0f %1.0f %s" % (beg,end,o[2]),flush=True,file=sys.stderr)
-            return "%1.0f %1.0f %s" % (beg,end,o[2])
+            # return "%1.0f %1.0f %s" % (beg,end,o[2])
+            return o[2]
         else:
             logger.debug("No text in this segment")
             return None
 
     def send_result(self, o):
         msg = self.format_output_transcript(o)
-        print(",,,,", msg)
         if msg is not None:
-            print("????")
             update_debugger_text(msg)
             # update_sentence_checker(msg)
             update_translator_text(msg)
@@ -199,8 +199,11 @@ class FFMpegClientThread(threading.Thread):
 
 def whisper_start():
     """Start the server and FFmpeg client."""
+    print(args)
     server_thread = ServerProcessorThread(online, args.min_chunk_size)
+    server_thread.daemon = True
     client_thread = FFMpegClientThread()
+    client_thread.daemon = True
 
     server_thread.start()
     client_thread.start()
@@ -216,11 +219,3 @@ def whisper_stop(server_thread, client_thread):
     client_thread.join()
     logger.info("Whisper processing stopped.")
 
-
-if __name__ == "__main__":
-    try:
-        server_thread, client_thread = whisper_start()
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        whisper_stop(server_thread, client_thread)
