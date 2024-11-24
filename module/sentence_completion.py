@@ -1,61 +1,47 @@
-# import time
-# from threading import Lock
-# from module.translator import update_translator_text
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextGenerationPipeline
+import torch
+import string
+import re
 
-# # 각각 사용할 곳에서 호출하면 스레드가 생성됨
-# # 타임아웃이 되면 업데이트
-# # 그냥 이 스레드에 계속해서 문자열을 누적시키고 타임아웃은 따로 체크 
-# def create_sentence_checker(timeout=2.0, interval=0.1):
-#     last_text = None
-#     last_update_time = 0
-#     lock = Lock()
-#     accumulated_text = []  # 누적된 텍스트 저장
+device = 0 if torch.cuda.is_available() else -1
 
-#     def _checker_thread():
-#         acc_interval = 0
-#         while True:
-#             time.sleep(interval)
-#             acc_interval += interval   # 현재시간 체크하는 것 보다 정확하지 않지만 그냥쓰셈
+CHINESE_PUNCTUATION = "。？！，、；：“”‘’（）《》〈〉【】「」—…～·"
 
-#             if (acc_interval >= timeout):
-#                 with lock:
-#                     update_translator_text("".join(accumulated_text))
-#                     accumulated_text.clear()
-#                 acc_interval = 0
+class SentenceBuffer:
+    def __init__(self, model_name="uer/gpt2-distil-chinese-cluecorpussmall", device=device):
+        # 모델 및 토크나이저 로드
+        # self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # self.model = AutoModelForCausalLM.from_pretrained(model_name).to("cpu")
+        # self.text_generator = TextGenerationPipeline(self.model, self.tokenizer, device=device)
+        self.buffer = []  # 텍스트 버퍼 초기화
 
-#     def is_custom_completion(current_sentence):
-#         """
-#         사용자 정의 조건을 확인
-#         :param current_sentence: 현재 누적된 문장
-#         :return: 조건이 충족되면 True, 아니면 False
-#         """
-#         return False
+    def remove_punctuation(self, text):
+        """구두점 제거 함수"""
+        return re.sub(r"[{}]".format(re.escape(string.punctuation)), "", text)
 
-#     def is_sentence_complete(new_text=None):
-#         """
-#         문장이 완성되었는지 확인
-#         :param new_text: 새로 입력된 텍스트 (None이면 업데이트 없음)
-#         :return: 완성된 문장 또는 None
-#         """
-#         nonlocal last_text, last_update_time
-#         current_time = time.time()
+    def is_sentence_complete(self, new_text):
+        """문장 완성 여부 확인 및 버퍼 관리"""
+        # 버퍼에 새로운 텍스트 추가
+        self.buffer.append(new_text)
 
-#         with lock:
-#             # 새로운 텍스트 업데이트 처리
-#             # "", None 는 무시
-#             if new_text and (new_text != last_text):
-#                 last_text = new_text
-#                 last_update_time = current_time
-#                 accumulated_text.append(new_text)
+        # # 텍스트 생성 방식
+        # generated = self.text_generator(self.buffer, max_length=len(self.buffer) + 10, do_sample=False)
+        # generated_text = self.remove_punctuation(generated[0]['generated_text'])
 
-#             # 현재 문장
-#             current_sentence = "".join(accumulated_text)
+        # print(f">>>>    Buffer: {self.buffer}")
+        # print(f">>>>    GENERA: {generated_text}")
+        # if len(generated_text.strip()) == len(self.buffer.strip()):
+        #     # 문장이 완성된 경우 버퍼 비우고 반환
+        #     complete_sentence = self.buffer.strip()
+        #     self.buffer = ""  # 버퍼 초기화
+        #     return complete_sentence
+        # else:
+        #     # 문장이 미완성된 경우 버퍼 유지
+        #     return None
 
-#             # 각 조건을 순차적으로 확인
-#             if is_timeout_complete(current_time) or is_punctuation_complete(current_sentence) or is_custom_completion(current_sentence):
-#                 accumulated_text.clear()
-#                 return current_sentence
-
-#         return None  # 아직 문장이 완성되지 않음
-
-#     return is_sentence_complete
+        if len(self.buffer) == 3:
+            complete_sentence = "".join(self.buffer)
+            self.buffer.pop(0)
+            return complete_sentence
+        else:
+            return None

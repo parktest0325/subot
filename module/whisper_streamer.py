@@ -5,6 +5,7 @@ import numpy as np
 import io
 import os
 import sys
+from module.sentence_completion import SentenceBuffer
 import soundfile
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -20,7 +21,6 @@ import whisper.line_packet as line_packet
 # Global configuration
 INTERFACE_NAME = "CABLE Output(VB-Audio Virtual Cable)"
 SAMPLING_RATE = 16000
-MIN_CHUNK_SIZE = 2.0  # in seconds
 TMP_HOST = "localhost"
 TMP_PORT = 43007
 
@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser()
 add_shared_args(parser)
 
 # 커스텀 옵션
-custom_args = ['--model', 'large-v3', '--lan', 'zh']
+custom_args = ['--model', 'large-v3', '--lan', 'zh', '--min-chunk-size', '2']
 args = parser.parse_args(custom_args)
 
 set_logging(args, logger, other="")
@@ -84,6 +84,7 @@ class ServerProcessorThread(threading.Thread):
         self.is_first = True
         self.conn = None
         self.addr = None
+        self.sentence_buffer = SentenceBuffer()
 
     def run(self):
         """Start the server and process incoming audio data."""
@@ -160,7 +161,9 @@ class ServerProcessorThread(threading.Thread):
         if msg is not None:
             update_debugger_text(msg)
             # update_sentence_checker(msg)
-            update_translator_text(msg)
+            comp_msg = self.sentence_buffer.is_sentence_complete(msg)
+            if comp_msg:
+                update_translator_text(comp_msg)
 
 
 

@@ -72,6 +72,6 @@ def translate(text, target_lang='kor_Hang'):
         return ""
     
     # pipeline에서 번역 수행
-    translated_result = translator(text, src_lang="zho_Hans", tgt_lang=target_lang)
+    translated_result = translator(text, src_lang="zho_Hans", tgt_lang=target_lang, max_length=1000)
     translated_text = translated_result[0]['translation_text']
     return translated_text
